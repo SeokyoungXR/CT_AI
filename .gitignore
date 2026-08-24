@@ -1,0 +1,11 @@
+data/
+outputs/
+release_assets/
+assets/traces/
+STUDENT_ASSETS.json
+ct_ai_office1_apartment1_assets.zip
+*.tmp
+*.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
