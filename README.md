@@ -79,19 +79,6 @@ outputs/apartment_1_preview.png
 
 ## 4. 3D 장면 그래프 렌더링
 
-### 넓은 구간 샘플 영상 (`--quick`)
-
-처음에는 `--quick`을 권장합니다. 원본 trajectory에서 10프레임마다 선택한 360프레임(`0, 10, ..., 3590`)을 12 FPS로 재생해 30초짜리 영상을 만듭니다. 아래 기본 영상도 360프레임·30초이지만, `--quick`은 장면 전체 시간 구간을 샘플하고 기본 영상은 처음 360프레임을 연속으로 보여줍니다.
-
-```bash
-python scripts/replay_scene.py --scene office_1 --quick --output outputs/office_1_quick.mp4
-python scripts/replay_scene.py --scene apartment_1 --quick --output outputs/apartment_1_quick.mp4
-```
-
-빠른 영상은 `outputs/office_1_quick.mp4`와 `outputs/apartment_1_quick.mp4`에 저장되므로 이후 기본 영상을 만들어도 덮어쓰지 않습니다.
-
-### 기본 영상
-
 옵션 없이 실행하면 연속된 첫 360프레임을 12 FPS로 재생해 30초짜리 영상을 만듭니다.
 
 ```bash
@@ -118,7 +105,7 @@ python scripts/replay_scene.py --scene office_1 --max-frames 50
 | `office_1` | 360 | 3,598 | 30초 | 약 4분 59.8초 |
 | `apartment_1` | 360 | 3,600 | 30초 | 5분 |
 
-영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only` → `--quick` → 기본 360프레임 순서로 확인하는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다. 더 빠르거나 느리게 재생하려면 `--fps` 값을 바꿀 수 있습니다.
+영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only`로 먼저 확인한 뒤 기본 360프레임 영상을 만드는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다. 더 빠르거나 느리게 재생하려면 `--fps` 값을 바꿀 수 있습니다.
 
 
 ## 중단 후 이어서 실행하기

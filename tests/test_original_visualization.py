@@ -23,7 +23,6 @@ from scripts.original_visualization import (
 from scripts.replay_scene import (
     build_parser,
     combined_frame,
-    default_output_stem,
     ffmpeg_command,
     prepare_work_dir,
     resolve_frame_settings,
@@ -41,10 +40,6 @@ class OriginalVisualizationTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parser.parse_args(["--scene", "office_1", "--scene-dir", "data/office_1"])
 
-    def test_quick_output_uses_a_separate_default_name(self) -> None:
-        self.assertEqual(default_output_stem("office_1", quick=False), "office_1")
-        self.assertEqual(default_output_stem("office_1", quick=True), "office_1_quick")
-
     def test_frame_modes_have_safe_limits(self) -> None:
         parser = build_parser()
 
@@ -54,18 +49,12 @@ class OriginalVisualizationTests(unittest.TestCase):
         default_indices = select_frame_indices(3598, 0, stride, limit)
         self.assertEqual((len(default_indices), default_indices[-1]), (360, 359))
 
-        stride, limit = resolve_frame_settings(parser.parse_args(["--quick"]))
-        quick_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(quick_indices), quick_indices[-1]), (360, 3590))
-
         stride, limit = resolve_frame_settings(parser.parse_args(["--preview-only"]))
         self.assertEqual(select_frame_indices(3598, 20, stride, limit), [20])
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--all-frames"]))
         self.assertEqual(len(select_frame_indices(3598, 0, stride, limit)), 3598)
 
-        with self.assertRaises(ValueError):
-            resolve_frame_settings(parser.parse_args(["--quick", "--max-frames", "10"]))
         with self.assertRaises(ValueError):
             resolve_frame_settings(parser.parse_args(["--preview-only", "--all-frames"]))
 

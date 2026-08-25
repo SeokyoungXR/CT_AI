@@ -42,8 +42,6 @@ WORK_OWNER = "CT_AI/scripts/replay_scene.py"
 RENDER_CACHE_VERSION = 2
 DEFAULT_FPS = 12
 DEFAULT_MAX_FRAMES = 360
-QUICK_FRAME_STRIDE = 10
-QUICK_MAX_FRAMES = 360
 
 
 def path_argument(value: str) -> Path:
@@ -51,10 +49,6 @@ def path_argument(value: str) -> Path:
         return clean_path(value)
     except ValueError as error:
         raise argparse.ArgumentTypeError(str(error)) from error
-
-
-def default_output_stem(scene_name: str, quick: bool) -> str:
-    return f"{scene_name}_quick" if quick else scene_name
 
 
 def work_manifest(
@@ -201,14 +195,6 @@ def valid_cached_panel(path: Path) -> bool:
 
 def resolve_frame_settings(args: argparse.Namespace) -> tuple[int, int]:
     """Return effective (stride, max frames), using zero only for all frames."""
-    if args.quick:
-        if args.preview_only:
-            raise ValueError("--quick cannot be combined with --preview-only")
-        if args.frame_stride != 1 or args.max_frames is not None or args.all_frames:
-            raise ValueError(
-                "--quick cannot be combined with --frame-stride, --max-frames, or --all-frames"
-            )
-        return QUICK_FRAME_STRIDE, QUICK_MAX_FRAMES
     if args.preview_only:
         if args.max_frames is not None or args.all_frames:
             raise ValueError(
@@ -273,7 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=path_argument,
-        help="Output MP4 path (defaults to outputs/<scene>[_quick].mp4)",
+        help="Output MP4 path (defaults to outputs/<scene>.mp4)",
     )
     parser.add_argument(
         "--fps",
@@ -296,14 +282,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             f"Remove the {DEFAULT_MAX_FRAMES}-frame cap; "
             "--start-frame/--frame-stride still apply"
-        ),
-    )
-    parser.add_argument(
-        "--quick",
-        action="store_true",
-        help=(
-            f"Shortcut for --frame-stride {QUICK_FRAME_STRIDE} "
-            f"--max-frames {QUICK_MAX_FRAMES}"
         ),
     )
     parser.add_argument(
@@ -379,11 +357,10 @@ def main() -> None:
         args.max_frames,
     )
 
-    output_stem = default_output_stem(scene_name, args.quick)
     output = (
         args.output.expanduser().resolve()
         if args.output is not None
-        else (PROJECT_ROOT / "outputs" / f"{output_stem}.mp4").resolve()
+        else (PROJECT_ROOT / "outputs" / f"{scene_name}.mp4").resolve()
     )
     if output.suffix.lower() != ".mp4":
         raise ValueError("--output must end in .mp4")
