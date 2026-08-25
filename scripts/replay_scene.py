@@ -40,8 +40,8 @@ from scripts.trace_io import (
 SUPPORTED_SCENES = ("office_1", "apartment_1")
 WORK_OWNER = "CT_AI/scripts/replay_scene.py"
 RENDER_CACHE_VERSION = 2
-DEFAULT_FPS = 12
-DEFAULT_MAX_FRAMES = 360
+DEFAULT_FPS = 15
+DEFAULT_MAX_FRAMES = 450
 
 
 def path_argument(value: str) -> Path:
