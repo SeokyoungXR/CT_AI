@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 from PIL import Image
 
@@ -128,6 +129,27 @@ class OriginalVisualizationTests(unittest.TestCase):
             panel = render_2d_panel(image_path, obj, rel)
         self.assertEqual(panel.shape, (PANEL_HEIGHT, PANEL_WIDTH, 3))
 
+    def test_edge_label_cannot_expand_matplotlib_canvas(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "frame-000000.color.jpg"
+            Image.new("RGB", (PANEL_WIDTH, PANEL_HEIGHT), "white").save(image_path)
+            obj = {
+                "classes": np.asarray([8]),
+                # The label starts beyond the right edge, which used to make
+                # bbox_inches="tight" produce a panel wider than 960 px.
+                "bboxes": np.asarray([[959, 270, 2, 2]], dtype=np.float32),
+                "scores": np.asarray([0.9] + [0.0] * 299, dtype=np.float32),
+            }
+            rel = {
+                "rels": np.empty((0, 2), dtype=np.int64),
+                "rel_classes": np.empty((0,), dtype=np.int64),
+            }
+            # Explicit figure bounds must also override a user's global
+            # Matplotlib preference for tightly cropped saved figures.
+            with matplotlib.rc_context({"savefig.bbox": "tight"}):
+                panel = render_2d_panel(image_path, obj, rel)
+        self.assertEqual(panel.shape, (PANEL_HEIGHT, PANEL_WIDTH, 3))
+
     def test_combined_frame_and_ffmpeg_layout(self) -> None:
         top = np.zeros((PANEL_HEIGHT, PANEL_WIDTH, 3), dtype=np.uint8)
         bottom = np.zeros_like(top)
@@ -144,6 +166,8 @@ class OriginalVisualizationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "frame.png"
             path.write_bytes(b"not a png")
+            self.assertFalse(valid_cached_panel(path))
+            Image.new("RGB", (970, PANEL_HEIGHT)).save(path)
             self.assertFalse(valid_cached_panel(path))
             Image.new("RGB", (960, 540)).save(path)
             self.assertTrue(valid_cached_panel(path))

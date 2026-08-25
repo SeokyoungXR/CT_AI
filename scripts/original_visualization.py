@@ -36,6 +36,7 @@ from scripts.trace_io import CameraIntrinsic
 
 PANEL_WIDTH = 960
 PANEL_HEIGHT = 540
+PANEL_DPI = 300
 
 
 def as_numpy(value: Any) -> np.ndarray:
@@ -82,13 +83,30 @@ def _text_color(background: np.ndarray) -> str:
 
 
 def _figure_to_rgb(figure: plt.Figure, expected_size: tuple[int, int]) -> np.ndarray:
-    stream = io.BytesIO()
-    figure.savefig(stream, format="png", dpi=300, bbox_inches="tight", pad_inches=0)
-    stream.seek(0)
-    with Image.open(stream) as image:
-        result = np.asarray(image.convert("RGB")).copy()
-    plt.close(figure)
     expected_width, expected_height = expected_size
+    # ``bbox_inches="tight"`` makes the output size depend on font metrics and
+    # annotation extents. On macOS, a label near an image edge can therefore
+    # widen a nominal 960 px panel (for example, to 970 px). Render the fixed
+    # Agg canvas instead and clip out-of-frame annotations at the image edge.
+    figure.set_size_inches(
+        expected_width / PANEL_DPI,
+        expected_height / PANEL_DPI,
+        forward=True,
+    )
+    stream = io.BytesIO()
+    try:
+        figure.savefig(
+            stream,
+            format="png",
+            dpi=PANEL_DPI,
+            bbox_inches=figure.bbox_inches,
+            pad_inches=0,
+        )
+        stream.seek(0)
+        with Image.open(stream) as image:
+            result = np.asarray(image.convert("RGB")).copy()
+    finally:
+        plt.close(figure)
     if result.shape != (expected_height, expected_width, 3):
         raise RuntimeError(
             "Matplotlib produced an unexpected panel size: "
@@ -213,7 +231,7 @@ def render_2d_panel(image_path: Path, obj_2d: dict[str, Any], rel_2d: dict[str, 
         _draw_2d_relations(axis, pairs, predicates, boxes, labels)
         _draw_2d_boxes(axis, boxes, labels, scores)
         axis.axis("off")
-        figure.set_size_inches(width / 300, height / 300)
+        figure.set_size_inches(width / PANEL_DPI, height / PANEL_DPI)
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         return _figure_to_rgb(figure, (width, height))
 
@@ -472,7 +490,7 @@ def render_3d_text_panel(
         )
 
     axis.axis("off")
-    figure.set_size_inches(intrinsic.width / 300, intrinsic.height / 300)
+    figure.set_size_inches(intrinsic.width / PANEL_DPI, intrinsic.height / PANEL_DPI)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     return _figure_to_rgb(figure, (intrinsic.width, intrinsic.height))
 
