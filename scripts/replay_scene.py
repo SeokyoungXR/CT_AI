@@ -53,6 +53,10 @@ def path_argument(value: str) -> Path:
         raise argparse.ArgumentTypeError(str(error)) from error
 
 
+def default_output_stem(scene_name: str, quick: bool) -> str:
+    return f"{scene_name}_quick" if quick else scene_name
+
+
 def work_manifest(
     scene_dir: Path,
     trace_dir: Path,
@@ -269,7 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=path_argument,
-        help="Output MP4 path (default: outputs/<scene>.mp4)",
+        help="Output MP4 path (defaults to outputs/<scene>[_quick].mp4)",
     )
     parser.add_argument(
         "--fps",
@@ -375,10 +379,11 @@ def main() -> None:
         args.max_frames,
     )
 
+    output_stem = default_output_stem(scene_name, args.quick)
     output = (
         args.output.expanduser().resolve()
         if args.output is not None
-        else (PROJECT_ROOT / "outputs" / f"{scene_name}.mp4").resolve()
+        else (PROJECT_ROOT / "outputs" / f"{output_stem}.mp4").resolve()
     )
     if output.suffix.lower() != ".mp4":
         raise ValueError("--output must end in .mp4")

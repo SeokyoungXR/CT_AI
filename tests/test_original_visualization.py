@@ -23,6 +23,7 @@ from scripts.original_visualization import (
 from scripts.replay_scene import (
     build_parser,
     combined_frame,
+    default_output_stem,
     ffmpeg_command,
     prepare_work_dir,
     resolve_frame_settings,
@@ -39,6 +40,10 @@ class OriginalVisualizationTests(unittest.TestCase):
         self.assertIsNone(parser.parse_args([]).scene)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parser.parse_args(["--scene", "office_1", "--scene-dir", "data/office_1"])
+
+    def test_quick_output_uses_a_separate_default_name(self) -> None:
+        self.assertEqual(default_output_stem("office_1", quick=False), "office_1")
+        self.assertEqual(default_output_stem("office_1", quick=True), "office_1_quick")
 
     def test_frame_modes_have_safe_limits(self) -> None:
         parser = build_parser()
