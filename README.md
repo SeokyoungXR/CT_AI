@@ -93,7 +93,6 @@ outputs/office_1.mp4
 outputs/apartment_1.mp4
 ```
 
-렌더링 중에는 `tqdm` 진행 바에서 완료 프레임, 진행률, 경과 시간과 예상 남은 시간을 확인할 수 있습니다. macOS가 반복 출력하던 `Context leak detected, CoreAnalytics returned false` 진단은 자동으로 걸러지며, 다른 VTK 오류는 그대로 표시됩니다.
 
 원하는 수만큼만 렌더링할 수도 있습니다.
 
@@ -107,7 +106,7 @@ python scripts/replay_scene.py --scene office_1 --max-frames 50
 | `office_1` | 400 | 3,598 | 약 26.7초 | 약 3분 59.9초 |
 | `apartment_1` | 400 | 3,600 | 약 26.7초 | 4분 |
 
-영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only`로 먼저 확인한 뒤 기본 400프레임 영상을 만드는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다. 더 빠르거나 느리게 재생하려면 `--fps` 값을 바꿀 수 있습니다.
+영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only`로 먼저 확인한 뒤 기본 400프레임 영상을 만드는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다.
 
 
 ## 중단 후 이어서 실행하기
