@@ -3,9 +3,12 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import matplotlib
 import numpy as np
@@ -14,8 +17,10 @@ from PIL import Image
 from scripts.original_visualization import (
     PANEL_HEIGHT,
     PANEL_WIDTH,
+    _filter_macos_coreanalytics_stderr,
     arc_midpoint,
     curvature_sequence,
+    filter_coreanalytics_noise,
     projected_object_means,
     ranked_3d_relations,
     render_2d_panel,
@@ -25,6 +30,7 @@ from scripts.replay_scene import (
     combined_frame,
     ffmpeg_command,
     prepare_work_dir,
+    progress_frames,
     resolve_frame_settings,
     valid_cached_panel,
     work_manifest,
@@ -33,6 +39,54 @@ from scripts.trace_io import CameraIntrinsic, select_frame_indices
 
 
 class OriginalVisualizationTests(unittest.TestCase):
+    def test_tqdm_progress_preserves_frame_order_and_reports_eta(self) -> None:
+        indices = [3, 7, 11]
+        with mock.patch("scripts.replay_scene.tqdm", return_value=iter(indices)) as tqdm_mock:
+            self.assertEqual(list(progress_frames(indices)), indices)
+        kwargs = tqdm_mock.call_args.kwargs
+        self.assertEqual(kwargs["total"], len(indices))
+        self.assertEqual(kwargs["desc"], "Rendering frames")
+        self.assertEqual(kwargs["unit"], "frame")
+        self.assertTrue(kwargs["dynamic_ncols"])
+        self.assertIs(kwargs["file"], sys.stdout)
+
+    def test_only_coreanalytics_noise_is_removed(self) -> None:
+        output = (
+            b"real VTK diagnostic\n"
+            b"Context leak detected, CoreAnalytics returned false\n"
+            b"  Context leak detected, CoreAnalytics returned false\r\n"
+            b"another diagnostic\n"
+        )
+        self.assertEqual(
+            filter_coreanalytics_noise(output),
+            b"real VTK diagnostic\nanother diagnostic\n",
+        )
+
+    @unittest.skipIf(os.name == "nt", "native fd test requires a POSIX stderr")
+    def test_native_stderr_filter_restores_fd_after_exception(self) -> None:
+        with tempfile.TemporaryFile() as captured:
+            saved_stderr = os.dup(2)
+            os.dup2(captured.fileno(), 2)
+            try:
+                with self.assertRaisesRegex(RuntimeError, "test failure"):
+                    with mock.patch.object(sys, "platform", "darwin"):
+                        with _filter_macos_coreanalytics_stderr():
+                            os.write(
+                                2,
+                                b"Context leak detected, CoreAnalytics returned false\n",
+                            )
+                            os.write(2, b"real VTK diagnostic\n")
+                            raise RuntimeError("test failure")
+                os.write(2, b"stderr restored\n")
+            finally:
+                os.dup2(saved_stderr, 2)
+                os.close(saved_stderr)
+            captured.seek(0)
+            self.assertEqual(
+                captured.read(),
+                b"real VTK diagnostic\nstderr restored\n",
+            )
+
     def test_student_scene_cli_and_advanced_path_are_mutually_exclusive(self) -> None:
         parser = build_parser()
         self.assertEqual(parser.parse_args(["--scene", "apartment_1"]).scene, "apartment_1")

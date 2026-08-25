@@ -8,8 +8,12 @@ Matplotlib drawing rules are intentionally kept unchanged.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import math
+import os
+import sys
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -37,6 +41,75 @@ from scripts.trace_io import CameraIntrinsic
 PANEL_WIDTH = 960
 PANEL_HEIGHT = 540
 PANEL_DPI = 300
+COREANALYTICS_NOISE = b"Context leak detected, CoreAnalytics returned false"
+
+
+def filter_coreanalytics_noise(output: bytes) -> bytes:
+    """Remove only Apple's repeated graphics diagnostic from native stderr."""
+    return b"".join(
+        line
+        for line in output.splitlines(keepends=True)
+        if line.strip() != COREANALYTICS_NOISE
+    )
+
+
+def _write_all(file_descriptor: int, output: bytes) -> None:
+    remaining = memoryview(output)
+    while remaining:
+        written = os.write(file_descriptor, remaining)
+        if written == 0:
+            break
+        remaining = remaining[written:]
+
+
+@contextlib.contextmanager
+def _filter_macos_coreanalytics_stderr():
+    """Capture native fd 2 on macOS while preserving every other diagnostic."""
+    if sys.platform != "darwin":
+        yield
+        return
+
+    capture = None
+    try:
+        capture = tempfile.TemporaryFile()
+        saved_stderr = os.dup(2)
+    except OSError:
+        if capture is not None:
+            capture.close()
+        yield
+        return
+
+    try:
+        with contextlib.suppress(OSError, ValueError):
+            sys.stderr.flush()
+        os.dup2(capture.fileno(), 2)
+    except (OSError, ValueError):
+        with contextlib.suppress(OSError):
+            os.close(saved_stderr)
+        with contextlib.suppress(OSError):
+            capture.close()
+        yield
+        return
+
+    try:
+        yield
+    finally:
+        with contextlib.suppress(OSError, ValueError):
+            sys.stderr.flush()
+        try:
+            try:
+                os.dup2(saved_stderr, 2)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.close(saved_stderr)
+            capture.seek(0)
+            remaining_output = filter_coreanalytics_noise(capture.read())
+        finally:
+            with contextlib.suppress(OSError):
+                capture.close()
+        if remaining_output:
+            with contextlib.suppress(OSError):
+                _write_all(2, remaining_output)
 
 
 def as_numpy(value: Any) -> np.ndarray:
@@ -244,29 +317,74 @@ def object_classes(obj: dict[str, Any]) -> tuple[np.ndarray, bool]:
     return classes.astype(np.int64, copy=False), is_v2
 
 
-def render_3d_panel(scene_mesh: Any, pose: np.ndarray, obj: dict[str, Any]) -> np.ndarray:
-    """Render one frame using the author's original Gaussian construction."""
-    try:
-        import pyvista as pv
-        from scipy.stats import multivariate_normal
-    except ModuleNotFoundError as error:  # pragma: no cover - integration dependency
-        raise RuntimeError(
-            "PyVista/VTK and SciPy are required. Update the conda environment from environment.yml."
-        ) from error
+class Original3DRenderer:
+    """Reuse one off-screen PyVista window across a temporal render."""
 
-    camera_rotation = pose[:3, :3]
-    camera_translation = pose[:3, 3]
-    classes, is_v2 = object_classes(obj)
-    means = as_numpy(obj["means"])
-    covariances = as_numpy(obj["covs"])
+    def __init__(self, scene_mesh: Any) -> None:
+        try:
+            import pyvista as pv
+            from scipy.stats import multivariate_normal
+        except ModuleNotFoundError as error:  # pragma: no cover - integration dependency
+            raise RuntimeError(
+                "PyVista/VTK and SciPy are required. "
+                "Update the conda environment from environment.yml."
+            ) from error
 
-    plotter = pv.Plotter(off_screen=True, window_size=(PANEL_WIDTH, PANEL_HEIGHT))
-    try:
+        self._pv = pv
+        self._multivariate_normal = multivariate_normal
+        self._scene_mesh = scene_mesh
+        with _filter_macos_coreanalytics_stderr():
+            self._plotter = pv.Plotter(
+                off_screen=True,
+                window_size=(PANEL_WIDTH, PANEL_HEIGHT),
+            )
+
+    def __enter__(self) -> "Original3DRenderer":
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        self.close()
+
+    def close(self) -> None:
+        if self._plotter is None:
+            return
+        plotter = self._plotter
+        self._plotter = None
+        with _filter_macos_coreanalytics_stderr():
+            plotter.close()
+
+    def render(self, pose: np.ndarray, obj: dict[str, Any]) -> np.ndarray:
+        """Render one frame using the author's original Gaussian construction."""
+        if self._plotter is None:
+            raise RuntimeError("The 3D renderer has already been closed")
+
+        with _filter_macos_coreanalytics_stderr():
+            return self._render(pose, obj)
+
+    def _render(self, pose: np.ndarray, obj: dict[str, Any]) -> np.ndarray:
+        plotter = self._plotter
+        if plotter is None:  # guarded by render(); keeps the internal type explicit
+            raise RuntimeError("The 3D renderer has already been closed")
+
+        camera_rotation = pose[:3, :3]
+        camera_translation = pose[:3, 3]
+        classes, is_v2 = object_classes(obj)
+        means = as_numpy(obj["means"])
+        covariances = as_numpy(obj["covs"])
+
+        # Keep PyVista's default light kit. ``Plotter.clear()`` also removes
+        # lights, while the original per-frame Plotter recreated them each time.
+        plotter.clear_actors()
         plotter.camera.view_angle = 58.4
         plotter.camera.focal_point = (camera_translation + camera_rotation[:, 2]).tolist()
         plotter.camera.position = camera_translation.tolist()
         plotter.camera.up = (-camera_rotation[:, 1]).tolist()
-        plotter.add_mesh(scene_mesh, rgb=True)
+        plotter.add_mesh(
+            self._scene_mesh,
+            rgb=True,
+            reset_camera=False,
+            render=False,
+        )
 
         for index, class_id_value in enumerate(classes):
             class_id = int(class_id_value)
@@ -300,11 +418,11 @@ def render_3d_panel(scene_mesh: Any, pose: np.ndarray, obj: dict[str, Any]) -> n
             positions[:, :, :, 0] = x
             positions[:, :, :, 1] = y
             positions[:, :, :, 2] = z
-            distribution = multivariate_normal(mean, covariance)
+            distribution = self._multivariate_normal(mean, covariance)
             density = distribution.pdf(positions)
             density *= ((2 * math.pi) ** 3 * np.linalg.det(covariance)) ** 0.5
 
-            grid = pv.StructuredGrid(x, y, z)
+            grid = self._pv.StructuredGrid(x, y, z)
             grid.point_data["pdf"] = density.flatten(order="F")
             iso_range = np.arange(0.1, 1.0, 0.02) if is_v2 else np.arange(0.05, 1.0, 0.01)
             opacity_scale = 0.15 if is_v2 else 0.1
@@ -319,6 +437,8 @@ def render_3d_panel(scene_mesh: Any, pose: np.ndarray, obj: dict[str, Any]) -> n
                     opacity=iso**2 * opacity_scale,
                     color=color,
                     lighting=False,
+                    reset_camera=False,
+                    render=False,
                 )
 
         plotter.render()
@@ -328,8 +448,12 @@ def render_3d_panel(scene_mesh: Any, pose: np.ndarray, obj: dict[str, Any]) -> n
         if rendered.shape != (PANEL_HEIGHT, PANEL_WIDTH, 3):
             raise RuntimeError(f"PyVista produced an unexpected image shape: {rendered.shape}")
         return rendered.astype(np.uint8, copy=False)
-    finally:
-        plotter.close()
+
+
+def render_3d_panel(scene_mesh: Any, pose: np.ndarray, obj: dict[str, Any]) -> np.ndarray:
+    """Render a standalone frame while sharing the reusable implementation."""
+    with Original3DRenderer(scene_mesh) as renderer:
+        return renderer.render(pose, obj)
 
 
 def projected_object_means(

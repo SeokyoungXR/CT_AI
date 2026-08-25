@@ -13,12 +13,14 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.original_visualization import (
+    Original3DRenderer,
     PANEL_HEIGHT,
     PANEL_WIDTH,
     render_2d_panel,
@@ -42,6 +44,17 @@ WORK_OWNER = "CT_AI/scripts/replay_scene.py"
 RENDER_CACHE_VERSION = 2
 DEFAULT_FPS = 15
 DEFAULT_MAX_FRAMES = 400
+
+
+def progress_frames(indices: list[int]):
+    return tqdm(
+        indices,
+        total=len(indices),
+        desc="Rendering frames",
+        unit="frame",
+        dynamic_ncols=True,
+        file=sys.stdout,
+    )
 
 
 def path_argument(value: str) -> Path:
@@ -386,36 +399,44 @@ def main() -> None:
     print(f"Frame cache: {work_dir}")
     print("Existing cached frames are reused, so rerunning resumes an interrupted render.")
 
-    for output_index, source_index in enumerate(indices):
-        top_path = work_dir / "2D" / f"frame-{output_index:06d}.color.png"
-        bottom_path = work_dir / "3D_text" / f"frame-{output_index:06d}.color.png"
-        if not valid_cached_panel(top_path):
-            top = render_2d_panel(
-                scene.image_paths[source_index],
-                trace.obj_2d[source_index],
-                trace.rel_2d[source_index],
-            )
-            save_rgb(top_path, top)
-        if not valid_cached_panel(bottom_path):
-            pose = load_pose(scene.pose_paths[source_index])
-            gaussian_panel = render_3d_panel(scene_mesh, pose, trace.obj[source_index])
-            bottom = render_3d_text_panel(
-                gaussian_panel,
-                trace.obj[source_index],
-                trace.rel[source_index],
-                pose,
-                intrinsic,
-            )
-            save_rgb(bottom_path, bottom)
-        if output_index == 0:
-            with Image.open(top_path) as top_image, Image.open(bottom_path) as bottom_image:
-                preview = np.concatenate(
-                    (np.asarray(top_image.convert("RGB")), np.asarray(bottom_image.convert("RGB"))),
-                    axis=0,
+    renderer_3d = None
+    try:
+        for output_index, source_index in enumerate(progress_frames(indices)):
+            top_path = work_dir / "2D" / f"frame-{output_index:06d}.color.png"
+            bottom_path = work_dir / "3D_text" / f"frame-{output_index:06d}.color.png"
+            if not valid_cached_panel(top_path):
+                top = render_2d_panel(
+                    scene.image_paths[source_index],
+                    trace.obj_2d[source_index],
+                    trace.rel_2d[source_index],
                 )
-                save_rgb(preview_path, preview)
-        if (output_index + 1) % 25 == 0 or output_index + 1 == len(indices):
-            print(f"Rendered {output_index + 1}/{len(indices)} frames")
+                save_rgb(top_path, top)
+            if not valid_cached_panel(bottom_path):
+                if renderer_3d is None:
+                    renderer_3d = Original3DRenderer(scene_mesh)
+                pose = load_pose(scene.pose_paths[source_index])
+                gaussian_panel = renderer_3d.render(pose, trace.obj[source_index])
+                bottom = render_3d_text_panel(
+                    gaussian_panel,
+                    trace.obj[source_index],
+                    trace.rel[source_index],
+                    pose,
+                    intrinsic,
+                )
+                save_rgb(bottom_path, bottom)
+            if output_index == 0:
+                with Image.open(top_path) as top_image, Image.open(bottom_path) as bottom_image:
+                    preview = np.concatenate(
+                        (
+                            np.asarray(top_image.convert("RGB")),
+                            np.asarray(bottom_image.convert("RGB")),
+                        ),
+                        axis=0,
+                    )
+                    save_rgb(preview_path, preview)
+    finally:
+        if renderer_3d is not None:
+            renderer_3d.close()
 
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:

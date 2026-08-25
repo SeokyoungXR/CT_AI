@@ -93,6 +93,8 @@ outputs/office_1.mp4
 outputs/apartment_1.mp4
 ```
 
+렌더링 중에는 `tqdm` 진행 바에서 완료 프레임, 진행률, 경과 시간과 예상 남은 시간을 확인할 수 있습니다. macOS가 반복 출력하던 `Context leak detected, CoreAnalytics returned false` 진단은 자동으로 걸러지며, 다른 VTK 오류는 그대로 표시됩니다.
+
 원하는 수만큼만 렌더링할 수도 있습니다.
 
 ```bash
