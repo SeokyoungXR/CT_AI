@@ -43,14 +43,15 @@ class OriginalVisualizationTests(unittest.TestCase):
     def test_frame_modes_have_safe_limits(self) -> None:
         parser = build_parser()
 
+        self.assertEqual(parser.parse_args([]).fps, 5)
         stride, limit = resolve_frame_settings(parser.parse_args([]))
-        self.assertEqual((stride, limit), (1, 1000))
+        self.assertEqual((stride, limit), (1, 100))
         default_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(default_indices), default_indices[-1]), (1000, 999))
+        self.assertEqual((len(default_indices), default_indices[-1]), (100, 99))
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--quick"]))
         quick_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(quick_indices), quick_indices[-1]), (300, 3588))
+        self.assertEqual((len(quick_indices), quick_indices[-1]), (100, 1188))
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--preview-only"]))
         self.assertEqual(select_frame_indices(3598, 20, stride, limit), [20])
@@ -85,6 +86,18 @@ class OriginalVisualizationTests(unittest.TestCase):
             prepare_work_dir(work_dir, desired, restart=True)
             stored = json.loads((work_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(stored, desired)
+
+    def test_fps_change_reuses_rendered_panel_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory) / ".scene_frames"
+            at_fifteen_fps = work_manifest(
+                Path("scene"), Path("trace"), list(range(10)), 15
+            )
+            at_five_fps = {**at_fifteen_fps, "fps": 5}
+            prepare_work_dir(work_dir, at_fifteen_fps, restart=False)
+            prepare_work_dir(work_dir, at_five_fps, restart=False)
+            stored = json.loads((work_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(stored["fps"], 5)
 
     def test_curvature_and_midpoint_match_original(self) -> None:
         np.testing.assert_allclose(curvature_sequence(4), [-0.24, 0.24, -0.48, 0.48])

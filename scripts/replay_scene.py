@@ -40,9 +40,10 @@ from scripts.trace_io import (
 SUPPORTED_SCENES = ("office_1", "apartment_1")
 WORK_OWNER = "CT_AI/scripts/replay_scene.py"
 RENDER_CACHE_VERSION = 2
-DEFAULT_MAX_FRAMES = 1000
+DEFAULT_FPS = 5
+DEFAULT_MAX_FRAMES = 100
 QUICK_FRAME_STRIDE = 12
-QUICK_MAX_FRAMES = 300
+QUICK_MAX_FRAMES = 100
 
 
 def path_argument(value: str) -> Path:
@@ -95,7 +96,6 @@ def _prefix_compatible_manifests(existing: dict, desired: dict) -> bool:
         "manifest_version",
         "scene_dir",
         "trace_dir",
-        "fps",
         "panel_size",
     )
     if any(existing.get(key) != desired.get(key) for key in fixed_keys):
@@ -271,7 +271,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=path_argument,
         help="Output MP4 path (default: outputs/<scene>.mp4)",
     )
-    parser.add_argument("--fps", type=int, default=15)
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=DEFAULT_FPS,
+        help=f"Output frames per second (default: {DEFAULT_FPS})",
+    )
     parser.add_argument("--start-frame", type=int, default=0)
     parser.add_argument("--frame-stride", type=int, default=1)
     frame_limit = parser.add_mutually_exclusive_group()
@@ -284,12 +289,18 @@ def build_parser() -> argparse.ArgumentParser:
     frame_limit.add_argument(
         "--all-frames",
         action="store_true",
-        help="Remove the 1000-frame cap; --start-frame/--frame-stride still apply",
+        help=(
+            f"Remove the {DEFAULT_MAX_FRAMES}-frame cap; "
+            "--start-frame/--frame-stride still apply"
+        ),
     )
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Shortcut for --frame-stride 12 --max-frames 300",
+        help=(
+            f"Shortcut for --frame-stride {QUICK_FRAME_STRIDE} "
+            f"--max-frames {QUICK_MAX_FRAMES}"
+        ),
     )
     parser.add_argument(
         "--preview-only",
@@ -427,7 +438,7 @@ def main() -> None:
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         raise RuntimeError("ffmpeg was not found. Install it through environment.yml.")
-    print("Encoding the original 960x1080, 15 FPS vertical layout...")
+    print(f"Encoding the original 960x1080 vertical layout at {args.fps} FPS...")
     process = subprocess.run(
         ffmpeg_command(ffmpeg, args.fps, work_dir, output, len(indices)),
         stdout=subprocess.DEVNULL,
