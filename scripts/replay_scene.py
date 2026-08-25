@@ -39,6 +39,7 @@ from scripts.trace_io import (
 
 SUPPORTED_SCENES = ("office_1", "apartment_1")
 WORK_OWNER = "CT_AI/scripts/replay_scene.py"
+RENDER_CACHE_VERSION = 2
 DEFAULT_MAX_FRAMES = 1000
 QUICK_FRAME_STRIDE = 12
 QUICK_MAX_FRAMES = 300
@@ -59,7 +60,7 @@ def work_manifest(
 ) -> dict:
     return {
         "created_by": WORK_OWNER,
-        "manifest_version": 1,
+        "manifest_version": RENDER_CACHE_VERSION,
         "scene_dir": str(scene_dir),
         "trace_dir": str(trace_dir),
         "source_indices": indices,

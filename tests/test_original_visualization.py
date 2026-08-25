@@ -74,6 +74,18 @@ class OriginalVisualizationTests(unittest.TestCase):
             stored = json.loads((work_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(len(stored["source_indices"]), 3598)
 
+    def test_stale_renderer_cache_requires_explicit_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory) / ".scene_frames"
+            desired = work_manifest(Path("scene"), Path("trace"), list(range(10)), 15)
+            stale = {**desired, "manifest_version": desired["manifest_version"] - 1}
+            prepare_work_dir(work_dir, stale, restart=False)
+            with self.assertRaises(RuntimeError):
+                prepare_work_dir(work_dir, desired, restart=False)
+            prepare_work_dir(work_dir, desired, restart=True)
+            stored = json.loads((work_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(stored, desired)
+
     def test_curvature_and_midpoint_match_original(self) -> None:
         np.testing.assert_allclose(curvature_sequence(4), [-0.24, 0.24, -0.48, 0.48])
         np.testing.assert_allclose(arc_midpoint((0, 0), (10, 0), -0.24), [5, -1.2])
@@ -112,6 +124,28 @@ class OriginalVisualizationTests(unittest.TestCase):
             ranked_3d_relations(compact, top_k=10),
             ranked_3d_relations(dense, top_k=10),
         )
+
+    def test_sparse_unsigned_relation_scores_do_not_rank_zeros_first(self) -> None:
+        dense = np.zeros((12, 12, 50), dtype=np.int64)
+        for subject, object_, predicate, score in (
+            (0, 1, 30, 11),
+            (2, 3, 28, 9),
+            (4, 5, 40, 7),
+            (6, 7, 13, 5),
+            (8, 9, 2, 3),
+            (10, 11, 1, 1),
+        ):
+            dense[subject, object_, predicate] = score
+        predicates = dense.argmax(-1).astype(np.uint8)
+        compact = {
+            "predicates": predicates,
+            "scores": np.take_along_axis(dense, predicates[..., None], axis=-1)[
+                ..., 0
+            ].astype(np.uint32),
+        }
+        expected = ranked_3d_relations(dense, top_k=10)
+        self.assertEqual(ranked_3d_relations(compact, top_k=10), expected)
+        self.assertEqual(len(expected), 6)
 
     def test_2d_panel_has_original_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

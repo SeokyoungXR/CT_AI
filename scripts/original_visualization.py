@@ -391,7 +391,11 @@ def ranked_3d_relations(relations: Any, top_k: int = 10) -> list[tuple[int, int,
     candidate_count = min(top_k * 5, count * count - 1)
     if count == 0 or candidate_count <= 0:
         return []
-    flattened = maximum.ravel()
+    # Packaged compact traces store evidence as uint32. Negating an unsigned
+    # array wraps positive scores to very large values, causing zero-score
+    # pairs to be ranked first and then filtered out. uint32 evidence is
+    # exactly representable as int64, matching the original dense trace.
+    flattened = maximum.astype(np.int64, copy=False).ravel()
     selected = np.argpartition(-flattened, candidate_count)[:candidate_count]
     selected = selected[flattened[selected] > 0]
     selected = selected[np.argsort(-flattened[selected])]
