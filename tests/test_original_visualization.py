@@ -45,9 +45,9 @@ class OriginalVisualizationTests(unittest.TestCase):
 
         self.assertEqual(parser.parse_args([]).fps, 15)
         stride, limit = resolve_frame_settings(parser.parse_args([]))
-        self.assertEqual((stride, limit), (1, 450))
+        self.assertEqual((stride, limit), (1, 400))
         default_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(default_indices), default_indices[-1]), (450, 449))
+        self.assertEqual((len(default_indices), default_indices[-1]), (400, 399))
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--preview-only"]))
         self.assertEqual(select_frame_indices(3598, 20, stride, limit), [20])
