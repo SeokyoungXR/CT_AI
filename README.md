@@ -81,7 +81,7 @@ outputs/apartment_1_preview.png
 
 ### 넓은 구간 샘플 영상 (`--quick`)
 
-처음에는 `--quick`을 권장합니다. 원본 trajectory에서 12프레임마다 선택한 100프레임(`0, 12, ..., 1188`)을 5 FPS로 재생해 약 20초짜리 영상을 만듭니다. 아래 기본 영상도 100프레임·20초이지만, `--quick`은 더 넓은 시간 구간을 샘플하고 기본 영상은 처음 100프레임을 연속으로 보여줍니다.
+처음에는 `--quick`을 권장합니다. 원본 trajectory에서 12프레임마다 선택한 240프레임(`0, 12, ..., 2868`)을 8 FPS로 재생해 30초짜리 영상을 만듭니다. 아래 기본 영상도 240프레임·30초이지만, `--quick`은 더 넓은 시간 구간을 샘플하고 기본 영상은 처음 240프레임을 연속으로 보여줍니다.
 
 ```bash
 python scripts/replay_scene.py --scene office_1 --quick --output outputs/office_1_quick.mp4
@@ -92,7 +92,7 @@ python scripts/replay_scene.py --scene apartment_1 --quick --output outputs/apar
 
 ### 기본 영상
 
-옵션 없이 실행하면 연속된 첫 100프레임을 5 FPS로 재생해 약 20초짜리 영상을 만듭니다.
+옵션 없이 실행하면 연속된 첫 240프레임을 8 FPS로 재생해 30초짜리 영상을 만듭니다.
 
 ```bash
 python scripts/replay_scene.py --scene office_1
@@ -115,10 +115,10 @@ python scripts/replay_scene.py --scene office_1 --max-frames 50
 
 | 장면 | 기본 프레임 | 전체 프레임 | 기본 영상 | 전체 영상 |
 |---|---:|---:|---:|---:|
-| `office_1` | 100 | 3,598 | 약 20초 | 약 11분 59.6초 |
-| `apartment_1` | 100 | 3,600 | 약 20초 | 12분 |
+| `office_1` | 240 | 3,598 | 30초 | 약 7분 29.8초 |
+| `apartment_1` | 240 | 3,600 | 30초 | 7분 30초 |
 
-영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only` → `--quick` → 기본 100프레임 순서로 확인하는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다. 더 빠르거나 느리게 재생하려면 `--fps` 값을 바꿀 수 있습니다.
+영상 길이와 실제 렌더링 시간은 다릅니다. 원본 Gaussian 렌더링은 오래 걸릴 수 있으므로 `--preview-only` → `--quick` → 기본 240프레임 순서로 확인하는 것을 권장합니다. ZIP, conda 환경, 렌더 cache를 위해 최소 6GB의 디스크 여유 공간을 권장합니다. 더 빠르거나 느리게 재생하려면 `--fps` 값을 바꿀 수 있습니다.
 
 
 ## 중단 후 이어서 실행하기

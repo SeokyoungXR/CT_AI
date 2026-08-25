@@ -48,15 +48,15 @@ class OriginalVisualizationTests(unittest.TestCase):
     def test_frame_modes_have_safe_limits(self) -> None:
         parser = build_parser()
 
-        self.assertEqual(parser.parse_args([]).fps, 5)
+        self.assertEqual(parser.parse_args([]).fps, 8)
         stride, limit = resolve_frame_settings(parser.parse_args([]))
-        self.assertEqual((stride, limit), (1, 100))
+        self.assertEqual((stride, limit), (1, 240))
         default_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(default_indices), default_indices[-1]), (100, 99))
+        self.assertEqual((len(default_indices), default_indices[-1]), (240, 239))
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--quick"]))
         quick_indices = select_frame_indices(3598, 0, stride, limit)
-        self.assertEqual((len(quick_indices), quick_indices[-1]), (100, 1188))
+        self.assertEqual((len(quick_indices), quick_indices[-1]), (240, 2868))
 
         stride, limit = resolve_frame_settings(parser.parse_args(["--preview-only"]))
         self.assertEqual(select_frame_indices(3598, 20, stride, limit), [20])
