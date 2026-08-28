@@ -17,6 +17,7 @@ from scripts.trace_io import (
     load_trace,
     select_frame_indices,
 )
+from scripts.spatial_evidence import build_spatial_records
 
 
 def write_pickle(path: Path, value) -> None:
@@ -149,6 +150,26 @@ class TraceIOTests(unittest.TestCase):
                 for frame in trace.obj_2d
             )
         )
+
+    def test_spatial_records_preserve_frame_features(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tiny_trace(root)
+            trace = load_trace(root, verify_checksums=False)
+
+        records = build_spatial_records(trace, "office_1")
+        self.assertEqual(len(records), 3)
+        self.assertEqual(records[2].record_id, "office_1_frame_000002")
+        self.assertEqual(records[2].features["object_count"], 3.0)
+        self.assertIsNone(records[0].timestamp)
+
+    def test_spatial_records_reject_invalid_fps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tiny_trace(root)
+            trace = load_trace(root, verify_checksums=False)
+        with self.assertRaises(ValueError):
+            build_spatial_records(trace, "office_1", fps=0)
 
 
 if __name__ == "__main__":
